@@ -1,0 +1,250 @@
+using IceTown;
+using System.Collections.Generic;
+
+Repository.LoadAllData();
+var owners = Repository.Owners;
+var houses = Repository.Houses;
+var heaters = Repository.Heaters;
+var usages = Repository.DailyUsages;
+
+
+var r01=heaters.Where(o=>
+{
+    Console.WriteLine($"WHERE ON {o}");
+    return o.PowerValue > 0;
+    }).OrderBy(o=>o.PowerValue).Take(2).ToList();
+
+
+Console.WriteLine("++++++++++++++++++++++++++++++++++++++++++++++++++++");
+var r02=heaters.Where(o=>
+{
+    Console.WriteLine($"WHERE ON {o}");
+    return o.PowerValue > 0;
+    }).Take(2).OrderBy(o=>o.PowerValue).ToList();
+
+
+
+
+
+
+void ElementOperations()
+{
+    //(First )
+    try
+    {
+        var owner = owners.First(o => o.Email == "mona@example.com");
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.WriteLine("No matching element found");
+    }
+    // FirstOrDefault 
+    var ownerSafe = owners.FirstOrDefault(o => o.Email == "mona@example.com");
+    if (ownerSafe != null)
+    {
+        Console.WriteLine(ownerSafe.FullName);
+    }
+
+    // Single 
+    try
+    {
+        var house01 = houses.SingleOrDefault(x => x.CityZone == "Zone-3");
+    }
+    catch(InvalidOperationException)
+    {
+        Console.WriteLine("Either no element OR more than one element");
+    }
+    //Single OrDefault
+    var house02 = houses.SingleOrDefault((x => x.CityZone == "Zone-3"));
+    if (house02 != null)
+    {
+        Console.WriteLine(house02.Address);
+    }
+
+    //ElementAt
+    try
+    {
+        var house = houses.ElementAt(10);
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+        Console.WriteLine("Index out of range");
+    }
+
+    // Last, LastOrDefault
+    try
+    {
+        var house = houses.Last(x => x.CityZone == "Zone-3");
+    }
+    catch(InvalidOperationException)
+    {
+        Console.WriteLine("Sequence is empty");
+    }
+    //LastOrDefault
+    var house03= houses.Last(x => x.CityZone == "Zone-3");
+    if (house03 != null)
+    {
+        Console.WriteLine(house03.Address);
+    }
+}
+void EqualityOperations()
+{
+    var seq1 = new List<int> { 1, 2, 3 };
+    var seq2 = new List<int> { 1, 2, 3 ,6};
+    var seq3 = new List<int> { 3, 2, 1 ,};
+    var seq4 = new List<int> { 1, 2, 4 ,8};
+
+    //SequenceEqual
+
+    //SequenceEqual (order sensitive)
+    Console.WriteLine(seq1.SequenceEqual(seq2)); // true 
+    Console.WriteLine(seq1.SequenceEqual(seq3)); // false not same order 
+
+    //order-insensitive   
+    var areEqualIgnoringOrder =
+    seq1.OrderBy(x => x)
+        .SequenceEqual(seq3.OrderBy(x => x));
+
+    Console.WriteLine(areEqualIgnoringOrder); //true
+
+    //EnumerableExcept
+    //1, 2, 3,6 seq2
+    // 1, 2, 4,8 seq4
+    var diff1 = seq1.Except(seq4); 
+    var diff2 = seq4.Except(seq2); 
+
+    Console.WriteLine(string.Join(",", diff1)); // 3,6
+    Console.WriteLine(string.Join(",", diff2)); // 4,8
+    //Explain equality semantics (reference vs value, need for custom comparers)    WRITTEN 
+}
+void Concatenation()
+{
+
+    //Show Concat of two sequences(e.g., heaters from house A concat heaters from house B)
+    var house01 = houses.Where(x => x.CityZone == "Zone-3").Single();
+    var house02 = houses.Where(x => x.CityZone == "Zone-1").Single();
+
+    var heaters01 = heaters.Where(h => h.HouseId == house01.HouseId);
+    var heaters02 = heaters.Where(h => h.HouseId == house02.HouseId);
+
+    var ConcatResult = heaters01.Concat(heaters02);//combie tow lists
+
+    DisplayHeater(ConcatResult);
+
+    //Show Append and Prepend usage
+    Heater h1 = new Heater() { HeaterId = Guid.NewGuid(), HouseId = house02.HouseId, HeaterType = "GAS", PowerValue = 500 };
+    heaters02.Append(h1); // add h1 to the heater02   
+
+    DisplayHeater(heaters01);
+
+    
+}
+void Aggregation()
+{
+    var heaterId = Repository.Heaters.First().HeaterId;
+
+    var totalHours = Repository.DailyUsages
+        .Where(u => u.HeaterId == heaterId)
+        .Sum(u => u.HoursWorked);
+
+    Console.WriteLine($"Total Heater Hours : {totalHours}");
+
+    var minPower = Repository.Heaters.Min(h => h.PowerValue);
+    var maxPower = Repository.Heaters.Max(h => h.PowerValue);
+    var avgPower = Repository.Heaters.Average(h => h.PowerValue);
+
+    Console.WriteLine($"Min Power: {minPower}");
+    Console.WriteLine($"Max Power: {maxPower}");
+    Console.WriteLine($"Avg Power: {avgPower}");
+
+    var topHouses = Repository.DailyUsages
+    .GroupBy(u => u.HouseId)
+    .Select(g => new
+    {
+        HouseId = g.Key,
+        TotalHours = g.Sum(x => x.HoursWorked)
+    })
+    .OrderByDescending(x => x.TotalHours)
+    .Take(5)
+    .ToList();
+
+    var csv = topHouses.Aggregate("",
+    (R, h) => R + $"{h.HouseId}:{h.TotalHours},",
+    result => result.TrimEnd(','));
+
+    Console.WriteLine("\nTop 5 Houses CSV:");
+    Console.WriteLine(csv);
+}
+void SetOperations()
+{
+    //Use Distinct on a projection (e.g., CityZone list)
+    var zones = houses
+    .Select(h => h.CityZone)
+    .Distinct();
+
+    Console.WriteLine("Distinct CityZones:");
+    Console.WriteLine(string.Join(", ", zones));
+    //Union heaters from two owners
+
+    var owner01 =owners[0];
+    var owner02 = owners[1];
+
+    var heaters01 = houses
+        .Where(h => h.OwnerId == owner01.OwnerId)
+        .SelectMany(h => h.Heaters)
+        .Select(h => h.HeaterId);
+
+    var heaters02 = houses
+        .Where(h => h.OwnerId == owner02.OwnerId)
+        .SelectMany(h => h.Heaters)
+        .Select(h => h.HeaterId);
+
+    var union = heaters02.Union(heaters02);
+
+    Console.WriteLine("\nUnion Heaters:");
+    Console.WriteLine(string.Join("\n", union));
+    Console.WriteLine("Count: " + union.Count());
+    //InterSect
+    var zone1 = houses[0].CityZone;
+    var zone2 = houses[1].CityZone;
+
+    var heatersZone1 = houses
+        .Where(h => h.CityZone == zone1)
+        .SelectMany(h => h.Heaters);
+
+
+    var heatersZone2 = houses
+        .Where(h => h.CityZone == zone2)
+        .SelectMany(h => h.Heaters);
+      
+
+    var common = heatersZone1.Intersect(heatersZone2);
+
+    Console.WriteLine("\nIntersect Heaters:");
+    Console.WriteLine(string.Join("\n", common));//zero 
+    Console.WriteLine("Count: " + common.Count());
+
+    //Except
+
+    var onlyIn01 =heaters01.Except(heaters02);
+    Console.WriteLine("\nHeaters in Zone1 not in Zone2:");
+    Console.WriteLine(string.Join("\n", onlyIn01));
+    Console.WriteLine("Count: " + onlyIn01.Count());
+
+    //Distinct
+
+    var distinctHeaters = heaters.DistinctBy(h => h.PowerValue);
+    Console.WriteLine("\nDistinctBy PowerValue:");
+    Console.WriteLine(string.Join("\n", distinctHeaters.Select(h => h.HeaterId)));
+
+}
+
+static void DisplayHeater(IEnumerable<Heater> heaters)
+{
+    foreach (var h in heaters)
+    {
+        Console.WriteLine($"houseid : {h.HouseId} heaterId: {h.HeaterId}  PowerValue : {h.PowerValue} heaterType: {h.HeaterType} ");
+    }
+    Console.WriteLine($"Length {heaters.Count()}");
+    Console.WriteLine("===============================================");
+}
